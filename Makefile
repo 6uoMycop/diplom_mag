@@ -1,16 +1,26 @@
 TARGET_DEVICE=atmega2560
-CPUFREQ=16000000 
+CPUFREQ=1000000 
 CC=/usr/bin/avr-gcc
 OBJCOPY=/usr/bin/avr-objcopy
 AR=/usr/bin/avr-ar
 STRIP=/usr/bin/avr-strip
 
 CFLAGS  = -g -Wall -Wextra -Werror -mmcu=$(TARGET_DEVICE) -O3 -I../randombytes/ -I.. -I./include/ -DF_CPU=$(CPUFREQ) -mcall-prologues
+MY_CFLAGS  = -g -Wall -Wextra -Werror -mmcu=$(TARGET_DEVICE) -O3 -mcall-prologues
 
 all: test/my.hex \
 	test/test.hex \
 	test/speed.hex \
 	test/stack.hex
+
+my: test/my.hex
+
+MY_C25519 = obj/fe25519_add.o \
+		obj/fe25519_red.o \
+		obj/fe25519_sub.o \
+		obj/bigint_mul256.o \
+		obj/bigint_square256.o \
+		#obj/bigint_subp.o \
 
 CURVE25519 = obj/fe25519.o \
 		obj/fe25519_add.o \
@@ -34,8 +44,8 @@ SPEED = test/print.c \
 
 
 
-test/my: test/my.c obj/curve25519.a $(SPEED)
-	$(CC) $(CFLAGS) $^ -o $@
+test/my: test/my.c obj/my_c25519.a
+	$(CC) $(MY_CFLAGS) $^ -o $@
 
 test/test: test/test.c obj/curve25519.a $(TEST)
 	$(CC) $(CFLAGS) $^ -o $@
@@ -48,6 +58,9 @@ test/stack: test/stack.c obj/curve25519.a $(TEST)
 
 test/%.hex: test/%
 	$(OBJCOPY) -O ihex -R .eeprom $^ $@
+
+obj/my_c25519.a: $(MY_C25519)
+	$(AR) -ar cr $@ $^
 
 obj/curve25519.a: $(CURVE25519)
 	$(AR) -ar cr $@ $^

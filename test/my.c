@@ -1,73 +1,107 @@
-#include <stdlib.h>
-#include "../api.h"
+//#include <stdlib.h>
+#include <avr/io.h>
+#ifdef OUTPUT_V
 #include "print.h"
-#include "cpucycles.h"
-#include "fail.h"
-#include "avr.h"
+#endif
+
+#define NUM_LEN_BYTES 32
+
+#define TRIGGER_PORT PORTA
+#define TRIGGER_DDR  DDRA
+
+static inline void trigger_s()
+{
+    TRIGGER_PORT |= 0xFF;
+}
+static inline void trigger_r()
+{
+    TRIGGER_PORT ^= TRIGGER_PORT;
+}
+
 struct number {
-  unsigned char v[32];
+    unsigned char v[NUM_LEN_BYTES];
 };
-struct my_point {
-  struct number u;
-  struct number v;
+struct ecc_point {
+    struct number u;
+    struct number v;
 };
 
 extern char bigint_mul256( unsigned char* r, const unsigned char* a, const unsigned char* b );
 extern char bigint_square256( unsigned char* r, const unsigned char* a);
-extern char bigint_subp( unsigned char* r, const unsigned char* a);
+//extern char bigint_subp( unsigned char* r, const unsigned char* a);
 
-extern void avrnacl_fe25519_red( struct number *r, unsigned char *C );/* reduction modulo 2^255-19 */
+extern void avrnacl_fe25519_red( struct number *r, unsigned char *C ); /* reduction modulo 2^255-19 */
 extern void avrnacl_fe25519_add( struct number *r, const struct number *x, const struct number *y );
 extern void avrnacl_fe25519_sub( struct number *r, const struct number *x, const struct number *y );
 
+static void __end()
+{
+#ifdef OUTPUT_V
+    serial_write( 4 );
+#endif
+
+    while( 1 )
+    {
+    };
+}
 
 //static unsigned char *n;
 //static unsigned char *p;
 
-/* d */
-static const struct number d = {{0xA3, 0x78, 0x59, 0x13, 0xCA, 0x4D, 0xEB, 0x75, 0xAB, 0xD8, 0x41, 0x41, 0x4D, 0x0A, 0x70, 0x00, 
-                                 0x98, 0xE8, 0x79, 0x77, 0x79, 0x40, 0xC7, 0x8C, 0x73, 0xFE, 0x6F, 0x2B, 0xEE, 0x6C, 0x03, 0x52}};
+// d
+static const struct number d = {{
+    0xA3, 0x78, 0x59, 0x13, 0xCA, 0x4D, 0xEB, 0x75, 0xAB, 0xD8, 0x41, 0x41, 0x4D, 0x0A, 0x70, 0x00, 
+    0x98, 0xE8, 0x79, 0x77, 0x79, 0x40, 0xC7, 0x8C, 0x73, 0xFE, 0x6F, 0x2B, 0xEE, 0x6C, 0x03, 0x52
+}};
 
-static inline void my_setzero(struct number *r)
+static inline void ecc_setzero( struct number *r )
 {
-  unsigned char i;
-  for( i = 0; i < 32; i++ )
-  {
-    r->v[i] = 0;
-  }
+    unsigned char i;
+    for( i = 0; i < NUM_LEN_BYTES; i++ )
+    {
+        r->v[i] = 0;
+    }
 }
-static inline void my_setone(struct number *r) 
+static inline void ecc_setone( struct number *r ) 
 {
-  unsigned char i;
-  r->v[0] = 1;
-  for( i = 1; i < 32; i++ )
-  {
-    r->v[i] = 0;
-  }
+    unsigned char i;
+    r->v[0] = 1;
+    for( i = 1; i < NUM_LEN_BYTES; i++ )
+    {
+        r->v[i] = 0;
+    }
+}
+static inline void ecc_copy_number( struct number *r, struct number *n )
+{
+    unsigned char i;
+    for( i = 0; i < NUM_LEN_BYTES; i++ )
+    {
+        r->v[i] = n->v[i];
+    }
 }
 
-static inline void my_neg( struct number *r, const struct number *x ) 
+static inline void ecc_neg( struct number *r, const struct number *x ) 
 {
-  struct number t;
-  my_setzero( &t );
-  avrnacl_fe25519_sub( r, &t, x );
+    struct number t;
+    ecc_setzero( &t );
+    avrnacl_fe25519_sub( r, &t, x );
 }
 
-static inline void my_mul( struct number *r, const struct number *x, const struct number *y )
+static inline void ecc_mul( struct number *r, const struct number *x, const struct number *y )
 {
-  unsigned char t[64];
-  bigint_mul256( t, x->v, y->v );
-  avrnacl_fe25519_red( r, t );
+    unsigned char t[64];
+    bigint_mul256( t, x->v, y->v );
+    avrnacl_fe25519_red( r, t );
 } 
 
-static inline void my_square( struct number *r, const struct number *x )
+static inline void ecc_square( struct number *r, const struct number *x )
 {
-  unsigned char t[64];
-  bigint_square256( t, x->v );
-  avrnacl_fe25519_red( r, t );
+    unsigned char t[64];
+    bigint_square256( t, x->v );
+    avrnacl_fe25519_red( r, t );
 }
 
-static inline void my_invert( struct number *r, const struct number *x )
+static inline void ecc_invert( struct number *r, const struct number *x )
 {
 	struct number z2;
 	struct number z11;
@@ -78,162 +112,296 @@ static inline void my_invert( struct number *r, const struct number *x )
 	struct number t1;
 	unsigned char i;
 
-	/* 2 */ my_square(&z2,x);
-	/* 4 */ my_square(&t1,&z2);
-	/* 8 */ my_square(&t0,&t1);
-	/* 9 */ my_mul(&z2_10_0,&t0,x);
-	/* 11 */ my_mul(&z11,&z2_10_0,&z2);
-	/* 22 */ my_square(&t0,&z11);
-	/* 2^5 - 2^0 = 31 */ my_mul(&z2_10_0,&t0,&z2_10_0);
+	/* 2 */
+    ecc_square( &z2, x );
+	/* 4 */
+    ecc_square( &t1, &z2 );
+	/* 8 */
+    ecc_square( &t0, &t1 );
+	/* 9 */
+    ecc_mul( &z2_10_0, &t0, x );
+	/* 11 */ 
+    ecc_mul( &z11, &z2_10_0, &z2 );
+	/* 22 */ 
+    ecc_square( &t0, &z11 );
+	/* 2^5 - 2^0 = 31 */ 
+    ecc_mul( &z2_10_0, &t0, &z2_10_0 );
 
-	/* 2^6 - 2^1 */ my_square(&t0,&z2_10_0);
-	/* 2^7 - 2^2 */ my_square(&t1,&t0);
-	/* 2^8 - 2^3 */ my_square(&t0,&t1);
-	/* 2^9 - 2^4 */ my_square(&t1,&t0);
-	/* 2^10 - 2^5 */ my_square(&t0,&t1);
-	/* 2^10 - 2^0 */ my_mul(&z2_10_0,&t0,&z2_10_0);
+	/* 2^6 - 2^1 */ 
+    ecc_square( &t0, &z2_10_0 );
+	/* 2^7 - 2^2 */ 
+    ecc_square( &t1, &t0 );
+	/* 2^8 - 2^3 */ 
+    ecc_square( &t0, &t1 );
+	/* 2^9 - 2^4 */ 
+    ecc_square( &t1, &t0 );
+	/* 2^10 - 2^5 */ 
+    ecc_square( &t0, &t1 );
+	/* 2^10 - 2^0 */ 
+    ecc_mul( &z2_10_0, &t0, &z2_10_0 );
 
-	/* 2^11 - 2^1 */ my_square(&t0,&z2_10_0);
-	/* 2^12 - 2^2 */ my_square(&t1,&t0);
-	/* 2^20 - 2^10 */ for (i = 2;i < 10;i += 2) { my_square(&t0,&t1); my_square(&t1,&t0); }
-	/* 2^20 - 2^0 */ my_mul(&z2_50_0,&t1,&z2_10_0);
+	/* 2^11 - 2^1 */ 
+    ecc_square( &t0, &z2_10_0 );
+	/* 2^12 - 2^2 */ 
+    ecc_square( &t1, &t0 );
+	/* 2^20 - 2^10 */ 
+    for( i = 2; i < 10; i += 2)
+    {
+        ecc_square( &t0, &t1 );
+        ecc_square( &t1, &t0 );
+    }
+	/* 2^20 - 2^0 */
+    ecc_mul( &z2_50_0, &t1, &z2_10_0 );
 
-	/* 2^21 - 2^1 */ my_square(&t0,&z2_50_0);
-	/* 2^22 - 2^2 */ my_square(&t1,&t0);
-	/* 2^40 - 2^20 */ for (i = 2;i < 20;i += 2) { my_square(&t0,&t1); my_square(&t1,&t0); }
-	/* 2^40 - 2^0 */ my_mul(&t0,&t1,&z2_50_0);
+	/* 2^21 - 2^1 */
+    ecc_square( &t0, &z2_50_0 );
+	/* 2^22 - 2^2 */
+    ecc_square( &t1, &t0 );
+	/* 2^40 - 2^20 */
+    for( i = 2; i < 20; i += 2 )
+    {
+        ecc_square( &t0, &t1 );
+        ecc_square( &t1, &t0 );
+    }
+	/* 2^40 - 2^0 */
+    ecc_mul( &t0, &t1, &z2_50_0 );
 
-	/* 2^41 - 2^1 */ my_square(&t1,&t0);
-	/* 2^42 - 2^2 */ my_square(&t0,&t1);
-	/* 2^50 - 2^10 */ for (i = 2;i < 10;i += 2) { my_square(&t1,&t0); my_square(&t0,&t1); }
-	/* 2^50 - 2^0 */ my_mul(&z2_50_0,&t0,&z2_10_0);
+	/* 2^41 - 2^1 */
+    ecc_square( &t1, &t0 );
+	/* 2^42 - 2^2 */
+    ecc_square( &t0, &t1 );
+	/* 2^50 - 2^10 */
+    for( i = 2; i < 10; i += 2 )
+    {
+        ecc_square( &t1, &t0 );
+        ecc_square( &t0, &t1 );
+    }
+	/* 2^50 - 2^0 */
+    ecc_mul( &z2_50_0, &t0, &z2_10_0 );
 
-	/* 2^51 - 2^1 */ my_square(&t0,&z2_50_0);
-	/* 2^52 - 2^2 */ my_square(&t1,&t0);
-	/* 2^100 - 2^50 */ for (i = 2;i < 50;i += 2) { my_square(&t0,&t1); my_square(&t1,&t0); }
-	/* 2^100 - 2^0 */ my_mul(&z2_100_0,&t1,&z2_50_0);
+	/* 2^51 - 2^1 */
+    ecc_square( &t0, &z2_50_0 );
+	/* 2^52 - 2^2 */
+    ecc_square( &t1, &t0 );
+	/* 2^100 - 2^50 */
+    for( i = 2; i < 50; i += 2 )
+    {
+        ecc_square( &t0, &t1 );
+        ecc_square( &t1, &t0 );
+    }
+	/* 2^100 - 2^0 */
+    ecc_mul( &z2_100_0, &t1, &z2_50_0 );
 
-	/* 2^101 - 2^1 */ my_square(&t1,&z2_100_0);
-	/* 2^102 - 2^2 */ my_square(&t0,&t1);
-	/* 2^200 - 2^100 */ for (i = 2;i < 100;i += 2) { my_square(&t1,&t0); my_square(&t0,&t1); }
-	/* 2^200 - 2^0 */ my_mul(&t1,&t0,&z2_100_0);
+	/* 2^101 - 2^1 */
+    ecc_square( &t1, &z2_100_0 );
+	/* 2^102 - 2^2 */
+    ecc_square( &t0, &t1 );
+	/* 2^200 - 2^100 */
+    for( i = 2; i < 100; i += 2 )
+    {
+        ecc_square( &t1, &t0 );
+        ecc_square( &t0, &t1 );
+    }
+	/* 2^200 - 2^0 */
+    ecc_mul( &t1, &t0, &z2_100_0 );
 
-	/* 2^201 - 2^1 */ my_square(&t0,&t1);
-	/* 2^202 - 2^2 */ my_square(&t1,&t0);
-	/* 2^250 - 2^50 */ for (i = 2;i < 50;i += 2) { my_square(&t0,&t1); my_square(&t1,&t0); }
-	/* 2^250 - 2^0 */ my_mul(&t0,&t1,&z2_50_0);
+	/* 2^201 - 2^1 */
+    ecc_square( &t0, &t1 );
+	/* 2^202 - 2^2 */
+    ecc_square( &t1, &t0 );
+	/* 2^250 - 2^50 */
+    for( i = 2; i < 50; i += 2 )
+    {
+        ecc_square( &t0, &t1 );
+        ecc_square( &t1, &t0 );
+    }
+	/* 2^250 - 2^0 */
+    ecc_mul( &t0, &t1, &z2_50_0 );
 
-	/* 2^251 - 2^1 */ my_square(&t1,&t0);
-	/* 2^252 - 2^2 */ my_square(&t0,&t1);
-	/* 2^253 - 2^3 */ my_square(&t1,&t0);
-	/* 2^254 - 2^4 */ my_square(&t0,&t1);
-	/* 2^255 - 2^5 */ my_square(&t1,&t0);
-	/* 2^255 - 21 */ my_mul(r,&t1,&z11);
+	/* 2^251 - 2^1 */
+    ecc_square( &t1, &t0 );
+	/* 2^252 - 2^2 */
+    ecc_square( &t0, &t1 );
+	/* 2^253 - 2^3 */
+    ecc_square( &t1, &t0 );
+	/* 2^254 - 2^4 */
+    ecc_square( &t0, &t1 );
+	/* 2^255 - 2^5 */
+    ecc_square( &t1, &t0 );
+	/* 2^255 - 21 */
+    ecc_mul( r, &t1, &z11 );
 }
 
 
-void my_points_add( struct my_point* R, struct my_point* P, struct my_point* Q )
+static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, struct ecc_point* Q )
 {
-  struct number uv_1;
-  struct number uv_2;
-  struct number t1;
-  struct number t2;
-  struct number t3;
-  struct number t4;
-  struct number t5;
-  struct number t6;
-  struct number t7;
-  struct number t8;
-  struct number one;
+    struct number uv_1;
+    struct number uv_2;
+    struct number t1;
+    struct number t2;
+    struct number t3;
+    struct number t4;
+    struct number t5;
+    struct number t6;
+    struct number t7;
+    struct number t8;
+    struct number one;
+    struct ecc_point T;
 
-  my_setzero( &(R->u) );
-  my_setzero( &(R->v) );
-  my_setzero( &uv_1 );
-  my_setzero( &uv_2 );
-  my_setzero( &t1 );
-  my_setzero( &t2 );
-  my_setzero( &t3 );
-  my_setzero( &t4 );
-  my_setzero( &t5 );
-  my_setzero( &t6 );
-  my_setzero( &t7 );
-  my_setzero( &t8 );
-  my_setone( &one );
-  
-  /* u1v2 */
-  my_mul( &uv_1, &(P->u), &(Q->v) );
-  /* u2v1 */
-  my_mul( &uv_2, &(Q->u), &(P->v) );
+    ecc_setzero( &(T.u) );
+    ecc_setzero( &(T.v) );
 
-  /* u1v2 + u2v1 */
-  avrnacl_fe25519_add( &t1, &uv_1, &uv_2 );
-  
-  /* m = u1v2 * u2v1 */
-  my_mul( &t2, &uv_1, &uv_2 );
-  
-  my_setzero( &uv_1 );
-  my_setzero( &uv_2 );
+    //ecc_setzero( &(R->u) );
+    //ecc_setzero( &(R->v) );
+    ecc_setzero( &uv_1 );
+    ecc_setzero( &uv_2 );
+    ecc_setzero( &t1 );
+    ecc_setzero( &t2 );
+    ecc_setzero( &t3 );
+    ecc_setzero( &t4 );
+    ecc_setzero( &t5 );
+    ecc_setzero( &t6 );
+    ecc_setzero( &t7 );
+    ecc_setzero( &t8 );
+    ecc_setone( &one );
+    
+    /* u1v2 */
+    ecc_mul( &uv_1, &(P->u), &(Q->v) );
+    /* u2v1 */
+    ecc_mul( &uv_2, &(Q->u), &(P->v) );
 
-  /* v1v2 */
-  my_mul( &uv_1, &(P->v), &(P->v) );
-  /* u1u2 */
-  my_mul( &uv_2, &(Q->u), &(Q->u) );
-  
-  /* v1v2 + u1u2 */
-  avrnacl_fe25519_add( &t3, &uv_1, &uv_2 );
-  
-  /* dm */
-  my_mul( &t4, &d, &t2 );
+    /* u1v2 + u2v1 */
+    avrnacl_fe25519_add( &t1, &uv_1, &uv_2 );
+    
+    /* m = u1v2 * u2v1 */
+    ecc_mul( &t2, &uv_1, &uv_2 );
+    
+    ecc_setzero( &uv_1 );
+    ecc_setzero( &uv_2 );
 
-  /* 1 + dm */
-  avrnacl_fe25519_add( &t5, &one, &t4 );
-  /* 1 - dm */
-  avrnacl_fe25519_sub( &t6, &one, &t4 );
-  
-  /* (1+dm)^-1 */
-  my_invert( &t7, &t5 );
-  /* (1-dm)^-1 */
-  my_invert( &t8, &t6 );
+    /* v1v2 */
+    ecc_mul( &uv_1, &(P->v), &(P->v) );
+    /* u1u2 */
+    ecc_mul( &uv_2, &(Q->u), &(Q->u) );
+    
+    /* v1v2 + u1u2 */
+    avrnacl_fe25519_add( &t3, &uv_1, &uv_2 );
+    
+    /* dm */
+    ecc_mul( &t4, &d, &t2 );
 
-  /*result*/
-  my_mul( &(R->u), &t1, &t7 );
-  my_mul( &(R->v), &t3, &t8 );
-  
+    /* 1 + dm */
+    avrnacl_fe25519_add( &t5, &one, &t4 );
+    /* 1 - dm */
+    avrnacl_fe25519_sub( &t6, &one, &t4 );
+    
+    /* (1+dm)^-1 */
+    ecc_invert( &t7, &t5 );
+    /* (1-dm)^-1 */
+    ecc_invert( &t8, &t6 );
+
+    /* result */
+    ecc_mul( &(T.u), &t1, &t7 );
+    ecc_mul( &(T.v), &t3, &t8 ); 
+
+    /* write result */
+    ecc_copy_number( &(R->u), &(T.u) );
+    ecc_copy_number( &(R->v), &(T.v) );
+}
+
+static inline void ecc_point_double( struct ecc_point* R, struct ecc_point* P )
+{
+    /* TODO rewrite */
+    ecc_points_add( R, P, P );
+}
+
+void ecc_point_multiplication( struct number *k, struct ecc_point* P, struct ecc_point* Q )
+{
+    
+    for( unsigned int i = 0; i < NUM_LEN_BYTES; i++ )
+    {
+        for( unsigned int j = 8; j > 0; j-- )
+        {
+            ecc_point_double( Q, Q );
+            if( k->v[i] & (1 << (j - 1)) )
+            {
+                ecc_points_add( Q, Q, P );
+            }
+        }
+    }
+    
+}
+
+static inline void init()
+{
+    TRIGGER_DDR |= 0xFF;
+    TRIGGER_PORT ^= TRIGGER_PORT;
 }
 
 int main( void )
 {
-  
+    init();
 
-  struct my_point R, P, Q;
+    struct ecc_point R, P, Q;
 
-  my_setzero( &(P.u) );
-  my_setzero( &(P.v) );
-  my_setzero( &(Q.u) );
-  my_setzero( &(Q.v) );
+    ecc_setzero( &(P.u) );
+    ecc_setzero( &(P.v) );
+    ecc_setzero( &(Q.u) );
+    ecc_setzero( &(Q.v) );
 
-  P.u.v[31] = 0xAB;
-  P.v.v[31] = 0x08;
-  Q.u.v[30] = 0x9D;
-  Q.v.v[31] = 0x35;
-  
-  my_points_add( &R, &P, &Q );
-  print( "u1\n" );
-  print_bytes( P.u.v, 32 );
-  print( "\nv1\n" );
-  print_bytes( P.v.v, 32 );
+    P.u.v[31] = 0xAB;
+    P.v.v[31] = 0x08;
+    Q.u.v[30] = 0x9D;
+    Q.v.v[31] = 0x35;
+    
+    ecc_points_add( &R, &P, &Q );
 
-  print( "\n\nu2\n" );
-  print_bytes( Q.u.v, 32 );
-  print( "\nv2\n" );
-  print_bytes( Q.v.v, 32 );
+#ifdef OUTPUT_V
+    print( "u1\n" );
+    print_bytes( P.u.v, 32 );
+    print( "\nv1\n" );
+    print_bytes( P.v.v, 32 );
 
-  print( "\n\nu3\n" );
-  print_bytes( R.u.v, 32 );
-  print( "\nv3\n" );
-  print_bytes( R.v.v, 32 );
+    print( "\n\nu2\n" );
+    print_bytes( Q.u.v, 32 );
+    print( "\nv2\n" );
+    print_bytes( Q.v.v, 32 );
 
-  avr_end();
-  return 0;
+    print( "\n\nu3\n" );
+    print_bytes( R.u.v, 32 );
+    print( "\nv3\n" );
+    print_bytes( R.v.v, 32 );
+#endif
+
+    __end();
+    return 0;
 }
 
+
+/*#include <avr/io.h>
+
+int main( void )
+{
+	DDRA |= 0xFF;
+	DDRB |= 0xFF;
+	DDRC |= 0xFF;
+	DDRD |= 0xFF;
+	DDRE |= 0xFF;
+	DDRF |= 0xFF;
+	DDRG |= 0xFF;
+	DDRH |= 0xFF;
+
+	for( ;; )
+	{
+		PORTA ^= 0xFF;
+		PORTB ^= 0xFF;
+		PORTC ^= 0xFF;
+		PORTD ^= 0xFF;
+		PORTE ^= 0xFF;
+		PORTF ^= 0xFF;
+		PORTG ^= 0xFF;
+		PORTH ^= 0xFF;
+		for( int i = 0; i < 255; i++ );
+	}
+}
+*/
