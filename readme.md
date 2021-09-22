@@ -14,9 +14,10 @@
 
 ## Build and deploy
 
-`$ make`
-
-`$ test/my_atmega2560.sh`
+```
+$ make
+$ test/my_atmega2560.sh
+```
 
 ## Contributions
 
