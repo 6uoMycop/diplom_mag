@@ -10,7 +10,7 @@
 
 ### Photo
 
-//TODO
+![Testbench](https://github.com/6uoMycop/diplom_mag/blob/main/misc/testbench_demo.png)
 
 ## Build and deploy
 
