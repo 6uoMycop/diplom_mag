@@ -1,4 +1,3 @@
-//#include <stdlib.h>
 #include <avr/io.h>
 #ifdef OUTPUT_V
 #include "print.h"
@@ -6,16 +5,16 @@
 
 #define NUM_LEN_BYTES 32
 
-#define TRIGGER_PORT PORTA
-#define TRIGGER_DDR  DDRA
+#define TRIGGER_PORT PORTE
+#define TRIGGER_DDR  DDRE
 
 static inline void trigger_s()
 {
-    TRIGGER_PORT |= 0xFF;
+    TRIGGER_PORT = 0xFF;
 }
 static inline void trigger_r()
 {
-    TRIGGER_PORT ^= TRIGGER_PORT;
+    TRIGGER_PORT = 0x00;
 }
 
 struct number {
@@ -315,9 +314,10 @@ static inline void ecc_point_double( struct ecc_point* R, struct ecc_point* P )
     ecc_points_add( R, P, P );
 }
 
-void ecc_point_multiplication( struct number *k, struct ecc_point* P, struct ecc_point* Q )
+void ecc_point_multiplication_binary( struct number *k, struct ecc_point* P, struct ecc_point* Q )
 {
-    
+    trigger_s();
+
     for( unsigned int i = 0; i < NUM_LEN_BYTES; i++ )
     {
         for( unsigned int j = 8; j > 0; j-- )
@@ -329,20 +329,31 @@ void ecc_point_multiplication( struct number *k, struct ecc_point* P, struct ecc
             }
         }
     }
-    
+
+    trigger_r();
 }
 
 static inline void init()
 {
-    TRIGGER_DDR |= 0xFF;
-    TRIGGER_PORT ^= TRIGGER_PORT;
+    TRIGGER_DDR = 0xFF;
+    TRIGGER_PORT = 0x00;
 }
 
 int main( void )
 {
     init();
 
-    struct ecc_point R, P, Q;
+    //trigger_s();
+    //trigger_r();
+
+    struct number k;
+    struct ecc_point P, Q;
+
+    ecc_setzero( &k );
+    //k.v[0] = 0b11111111;
+    k.v[0] = 0b10101010;
+    //k.v[0] = 0b11001100;
+    //k.v[0] = 0b10001000;
 
     ecc_setzero( &(P.u) );
     ecc_setzero( &(P.v) );
@@ -351,10 +362,10 @@ int main( void )
 
     P.u.v[31] = 0xAB;
     P.v.v[31] = 0x08;
-    Q.u.v[30] = 0x9D;
-    Q.v.v[31] = 0x35;
+    //Q.u.v[30] = 0x9D;
+    //Q.v.v[31] = 0x35;
     
-    ecc_points_add( &R, &P, &Q );
+    ecc_point_multiplication_binary( &k, &P, &Q );
 
 #ifdef OUTPUT_V
     print( "u1\n" );
@@ -377,31 +388,3 @@ int main( void )
     return 0;
 }
 
-
-/*#include <avr/io.h>
-
-int main( void )
-{
-	DDRA |= 0xFF;
-	DDRB |= 0xFF;
-	DDRC |= 0xFF;
-	DDRD |= 0xFF;
-	DDRE |= 0xFF;
-	DDRF |= 0xFF;
-	DDRG |= 0xFF;
-	DDRH |= 0xFF;
-
-	for( ;; )
-	{
-		PORTA ^= 0xFF;
-		PORTB ^= 0xFF;
-		PORTC ^= 0xFF;
-		PORTD ^= 0xFF;
-		PORTE ^= 0xFF;
-		PORTF ^= 0xFF;
-		PORTG ^= 0xFF;
-		PORTH ^= 0xFF;
-		for( int i = 0; i < 255; i++ );
-	}
-}
-*/
