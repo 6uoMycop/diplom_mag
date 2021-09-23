@@ -234,74 +234,72 @@ static inline void ecc_invert( struct number *r, const struct number *x )
 
 static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, struct ecc_point* Q )
 {
-    struct number uv_1;
-    struct number uv_2;
+    struct number v1;
+    struct number v2;
     struct number t1;
     struct number t2;
     struct number t3;
-    struct number t4;
-    struct number t5;
-    struct number t6;
-    struct number t7;
-    struct number t8;
     struct number one;
     struct ecc_point T;
 
     ecc_setzero( &(T.u) );
     ecc_setzero( &(T.v) );
 
-    //ecc_setzero( &(R->u) );
-    //ecc_setzero( &(R->v) );
-    ecc_setzero( &uv_1 );
-    ecc_setzero( &uv_2 );
+    ecc_setzero( &v1 );
+    ecc_setzero( &v2 );
     ecc_setzero( &t1 );
     ecc_setzero( &t2 );
     ecc_setzero( &t3 );
-    ecc_setzero( &t4 );
-    ecc_setzero( &t5 );
-    ecc_setzero( &t6 );
-    ecc_setzero( &t7 );
-    ecc_setzero( &t8 );
     ecc_setone( &one );
-    
+
     /* u1v2 */
-    ecc_mul( &uv_1, &(P->u), &(Q->v) );
+    ecc_mul( &v1, &(P->u), &(Q->v) );
     /* u2v1 */
-    ecc_mul( &uv_2, &(Q->u), &(P->v) );
+    ecc_mul( &v2, &(Q->u), &(P->v) );
 
     /* u1v2 + u2v1 */
-    avrnacl_fe25519_add( &t1, &uv_1, &uv_2 );
-    
+    avrnacl_fe25519_add( &t1, &v1, &v2 );
+
     /* m = u1v2 * u2v1 */
-    ecc_mul( &t2, &uv_1, &uv_2 );
-    
-    ecc_setzero( &uv_1 );
-    ecc_setzero( &uv_2 );
+    ecc_mul( &t2, &v1, &v2 );
+
+    ecc_setzero( &v1 );
+    ecc_setzero( &v2 );
 
     /* v1v2 */
-    ecc_mul( &uv_1, &(P->v), &(P->v) );
+    ecc_mul( &v1, &(P->v), &(P->v) );
     /* u1u2 */
-    ecc_mul( &uv_2, &(Q->u), &(Q->u) );
-    
+    ecc_mul( &v2, &(Q->u), &(Q->u) );
+
     /* v1v2 + u1u2 */
-    avrnacl_fe25519_add( &t3, &uv_1, &uv_2 );
-    
+    avrnacl_fe25519_add( &t3, &v1, &v2 );
+
+    ecc_setzero( &v1 );
+    ecc_setzero( &v2 );
+
     /* dm */
-    ecc_mul( &t4, &d, &t2 );
+    ecc_mul( &v1, &d, &t2 );
+
+    ecc_setzero( &t2 );
 
     /* 1 + dm */
-    avrnacl_fe25519_add( &t5, &one, &t4 );
+    avrnacl_fe25519_add( &v2, &one, &v1 );
     /* 1 - dm */
-    avrnacl_fe25519_sub( &t6, &one, &t4 );
-    
+    avrnacl_fe25519_sub( &t2, &one, &v1 );
+
+    ecc_setzero( &v1 );
+
     /* (1+dm)^-1 */
-    ecc_invert( &t7, &t5 );
+    ecc_invert( &v1, &v2 );
+
+    ecc_setzero( &v2 );
+
     /* (1-dm)^-1 */
-    ecc_invert( &t8, &t6 );
+    ecc_invert( &v2, &t2 );
 
     /* result */
-    ecc_mul( &(T.u), &t1, &t7 );
-    ecc_mul( &(T.v), &t3, &t8 ); 
+    ecc_mul( &(T.u), &t1, &v1 );
+    ecc_mul( &(T.v), &t3, &v2 );
 
     /* write result */
     ecc_copy_number( &(R->u), &(T.u) );
