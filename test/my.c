@@ -243,9 +243,6 @@ static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, str
     struct number t3;
     struct ecc_point T;
 
-    ecc_setzero( &(T.u) );
-    ecc_setzero( &(T.v) );
-
     /* u1v2 */
     ecc_mul( &v1, &(P->u), &(Q->v) );
     /* u2v1 */
@@ -256,9 +253,6 @@ static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, str
 
     /* m = u1v2 * u2v1 */
     ecc_mul( &t2, &v1, &v2 );
-
-    ecc_setzero( &v1 );
-    ecc_setzero( &v2 );
 
     /* v1v2 */
     ecc_mul( &v1, &(P->v), &(P->v) );
@@ -275,8 +269,6 @@ static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, str
     avrnacl_fe25519_add( &v2, &one, &v1 );
     /* 1 - dm */
     avrnacl_fe25519_sub( &t2, &one, &v1 );
-
-    ecc_setzero( &v1 );
 
     /* (1+dm)^-1 */
     ecc_invert( &v1, &v2 );
