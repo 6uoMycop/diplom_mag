@@ -53,7 +53,7 @@ static const struct number d = {{
     0x98, 0xE8, 0x79, 0x77, 0x79, 0x40, 0xC7, 0x8C, 0x73, 0xFE, 0x6F, 0x2B, 0xEE, 0x6C, 0x03, 0x52
 }};
 
-static const struct number one; /* Being initialised in init() */
+static struct number one; /* Being initialised in init() */
 
 static inline void ecc_setzero( struct number *r )
 {
@@ -293,7 +293,7 @@ void ecc_point_multiplication_binary( struct number *k, struct ecc_point* P, str
     {
         for( unsigned int j = 8; j > 0; j-- )
         {
-            ecc_point_add( Q, Q, Q );
+            ecc_points_add( Q, Q, Q );
             if( k->v[i] & (1 << (j - 1)) )
             {
                 ecc_points_add( Q, Q, P );
