@@ -53,6 +53,8 @@ static const struct number d = {{
     0x98, 0xE8, 0x79, 0x77, 0x79, 0x40, 0xC7, 0x8C, 0x73, 0xFE, 0x6F, 0x2B, 0xEE, 0x6C, 0x03, 0x52
 }};
 
+static const struct number one; /* Being initialised in init() */
+
 static inline void ecc_setzero( struct number *r )
 {
     unsigned char i;
@@ -88,14 +90,14 @@ static inline void ecc_neg( struct number *r, const struct number *x )
 
 static inline void ecc_mul( struct number *r, const struct number *x, const struct number *y )
 {
-    unsigned char t[64];
+    unsigned char t[NUM_LEN_BYTES * 2];
     bigint_mul256( t, x->v, y->v );
     avrnacl_fe25519_red( r, t );
 } 
 
 static inline void ecc_square( struct number *r, const struct number *x )
 {
-    unsigned char t[64];
+    unsigned char t[NUM_LEN_BYTES * 2];
     bigint_square256( t, x->v );
     avrnacl_fe25519_red( r, t );
 }
@@ -239,18 +241,10 @@ static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, str
     struct number t1;
     struct number t2;
     struct number t3;
-    struct number one;
     struct ecc_point T;
 
     ecc_setzero( &(T.u) );
     ecc_setzero( &(T.v) );
-
-    ecc_setzero( &v1 );
-    ecc_setzero( &v2 );
-    ecc_setzero( &t1 );
-    ecc_setzero( &t2 );
-    ecc_setzero( &t3 );
-    ecc_setone( &one );
 
     /* u1v2 */
     ecc_mul( &v1, &(P->u), &(Q->v) );
@@ -274,13 +268,8 @@ static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, str
     /* v1v2 + u1u2 */
     avrnacl_fe25519_add( &t3, &v1, &v2 );
 
-    ecc_setzero( &v1 );
-    ecc_setzero( &v2 );
-
     /* dm */
     ecc_mul( &v1, &d, &t2 );
-
-    ecc_setzero( &t2 );
 
     /* 1 + dm */
     avrnacl_fe25519_add( &v2, &one, &v1 );
@@ -291,8 +280,6 @@ static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, str
 
     /* (1+dm)^-1 */
     ecc_invert( &v1, &v2 );
-
-    ecc_setzero( &v2 );
 
     /* (1-dm)^-1 */
     ecc_invert( &v2, &t2 );
@@ -306,12 +293,6 @@ static inline void ecc_points_add( struct ecc_point* R, struct ecc_point* P, str
     ecc_copy_number( &(R->v), &(T.v) );
 }
 
-static inline void ecc_point_double( struct ecc_point* R, struct ecc_point* P )
-{
-    /* TODO rewrite */
-    ecc_points_add( R, P, P );
-}
-
 void ecc_point_multiplication_binary( struct number *k, struct ecc_point* P, struct ecc_point* Q )
 {
     trigger_s();
@@ -320,7 +301,7 @@ void ecc_point_multiplication_binary( struct number *k, struct ecc_point* P, str
     {
         for( unsigned int j = 8; j > 0; j-- )
         {
-            ecc_point_double( Q, Q );
+            ecc_point_add( Q, Q, Q );
             if( k->v[i] & (1 << (j - 1)) )
             {
                 ecc_points_add( Q, Q, P );
@@ -335,6 +316,8 @@ static inline void init()
 {
     TRIGGER_DDR = 0xFF;
     TRIGGER_PORT = 0x00;
+
+    ecc_setone( &one );
 }
 
 int main( void )
@@ -385,4 +368,3 @@ int main( void )
     __end();
     return 0;
 }
-
