@@ -102,132 +102,132 @@ static inline void ecc_square( struct number *r, const struct number *x )
 
 static inline void ecc_invert( struct number *r, const struct number *x )
 {
-	struct number z2;
-	struct number z11;
-	struct number z2_10_0;
-	struct number z2_50_0;
-	struct number z2_100_0;
-	struct number t0;
-	struct number t1;
-	unsigned char i;
+    struct number z2;
+    struct number z11;
+    struct number z2_10_0;
+    struct number z2_50_0;
+    struct number z2_100_0;
+    struct number t0;
+    struct number t1;
+    unsigned char i;
 
-	/* 2 */
+    /* 2 */
     ecc_square( &z2, x );
-	/* 4 */
+    /* 4 */
     ecc_square( &t1, &z2 );
-	/* 8 */
+    /* 8 */
     ecc_square( &t0, &t1 );
-	/* 9 */
+    /* 9 */
     ecc_mul( &z2_10_0, &t0, x );
-	/* 11 */ 
+    /* 11 */ 
     ecc_mul( &z11, &z2_10_0, &z2 );
-	/* 22 */ 
+    /* 22 */ 
     ecc_square( &t0, &z11 );
-	/* 2^5 - 2^0 = 31 */ 
+    /* 2^5 - 2^0 = 31 */ 
     ecc_mul( &z2_10_0, &t0, &z2_10_0 );
 
-	/* 2^6 - 2^1 */ 
+    /* 2^6 - 2^1 */ 
     ecc_square( &t0, &z2_10_0 );
-	/* 2^7 - 2^2 */ 
+    /* 2^7 - 2^2 */ 
     ecc_square( &t1, &t0 );
-	/* 2^8 - 2^3 */ 
+    /* 2^8 - 2^3 */ 
     ecc_square( &t0, &t1 );
-	/* 2^9 - 2^4 */ 
+    /* 2^9 - 2^4 */ 
     ecc_square( &t1, &t0 );
-	/* 2^10 - 2^5 */ 
+    /* 2^10 - 2^5 */ 
     ecc_square( &t0, &t1 );
-	/* 2^10 - 2^0 */ 
+    /* 2^10 - 2^0 */ 
     ecc_mul( &z2_10_0, &t0, &z2_10_0 );
 
-	/* 2^11 - 2^1 */ 
+    /* 2^11 - 2^1 */ 
     ecc_square( &t0, &z2_10_0 );
-	/* 2^12 - 2^2 */ 
+    /* 2^12 - 2^2 */ 
     ecc_square( &t1, &t0 );
-	/* 2^20 - 2^10 */ 
+    /* 2^20 - 2^10 */ 
     for( i = 2; i < 10; i += 2)
     {
         ecc_square( &t0, &t1 );
         ecc_square( &t1, &t0 );
     }
-	/* 2^20 - 2^0 */
+    /* 2^20 - 2^0 */
     ecc_mul( &z2_50_0, &t1, &z2_10_0 );
 
-	/* 2^21 - 2^1 */
+    /* 2^21 - 2^1 */
     ecc_square( &t0, &z2_50_0 );
-	/* 2^22 - 2^2 */
+    /* 2^22 - 2^2 */
     ecc_square( &t1, &t0 );
-	/* 2^40 - 2^20 */
+    /* 2^40 - 2^20 */
     for( i = 2; i < 20; i += 2 )
     {
         ecc_square( &t0, &t1 );
         ecc_square( &t1, &t0 );
     }
-	/* 2^40 - 2^0 */
+    /* 2^40 - 2^0 */
     ecc_mul( &t0, &t1, &z2_50_0 );
 
-	/* 2^41 - 2^1 */
+    /* 2^41 - 2^1 */
     ecc_square( &t1, &t0 );
-	/* 2^42 - 2^2 */
+    /* 2^42 - 2^2 */
     ecc_square( &t0, &t1 );
-	/* 2^50 - 2^10 */
+    /* 2^50 - 2^10 */
     for( i = 2; i < 10; i += 2 )
     {
         ecc_square( &t1, &t0 );
         ecc_square( &t0, &t1 );
     }
-	/* 2^50 - 2^0 */
+    /* 2^50 - 2^0 */
     ecc_mul( &z2_50_0, &t0, &z2_10_0 );
 
-	/* 2^51 - 2^1 */
+    /* 2^51 - 2^1 */
     ecc_square( &t0, &z2_50_0 );
-	/* 2^52 - 2^2 */
+    /* 2^52 - 2^2 */
     ecc_square( &t1, &t0 );
-	/* 2^100 - 2^50 */
+    /* 2^100 - 2^50 */
     for( i = 2; i < 50; i += 2 )
     {
         ecc_square( &t0, &t1 );
         ecc_square( &t1, &t0 );
     }
-	/* 2^100 - 2^0 */
+    /* 2^100 - 2^0 */
     ecc_mul( &z2_100_0, &t1, &z2_50_0 );
 
-	/* 2^101 - 2^1 */
+    /* 2^101 - 2^1 */
     ecc_square( &t1, &z2_100_0 );
-	/* 2^102 - 2^2 */
+    /* 2^102 - 2^2 */
     ecc_square( &t0, &t1 );
-	/* 2^200 - 2^100 */
+    /* 2^200 - 2^100 */
     for( i = 2; i < 100; i += 2 )
     {
         ecc_square( &t1, &t0 );
         ecc_square( &t0, &t1 );
     }
-	/* 2^200 - 2^0 */
+    /* 2^200 - 2^0 */
     ecc_mul( &t1, &t0, &z2_100_0 );
 
-	/* 2^201 - 2^1 */
+    /* 2^201 - 2^1 */
     ecc_square( &t0, &t1 );
-	/* 2^202 - 2^2 */
+    /* 2^202 - 2^2 */
     ecc_square( &t1, &t0 );
-	/* 2^250 - 2^50 */
+    /* 2^250 - 2^50 */
     for( i = 2; i < 50; i += 2 )
     {
         ecc_square( &t0, &t1 );
         ecc_square( &t1, &t0 );
     }
-	/* 2^250 - 2^0 */
+    /* 2^250 - 2^0 */
     ecc_mul( &t0, &t1, &z2_50_0 );
 
-	/* 2^251 - 2^1 */
+    /* 2^251 - 2^1 */
     ecc_square( &t1, &t0 );
-	/* 2^252 - 2^2 */
+    /* 2^252 - 2^2 */
     ecc_square( &t0, &t1 );
-	/* 2^253 - 2^3 */
+    /* 2^253 - 2^3 */
     ecc_square( &t1, &t0 );
-	/* 2^254 - 2^4 */
+    /* 2^254 - 2^4 */
     ecc_square( &t0, &t1 );
-	/* 2^255 - 2^5 */
+    /* 2^255 - 2^5 */
     ecc_square( &t1, &t0 );
-	/* 2^255 - 21 */
+    /* 2^255 - 21 */
     ecc_mul( r, &t1, &z11 );
 }
 
